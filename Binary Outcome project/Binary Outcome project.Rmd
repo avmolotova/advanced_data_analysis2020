@@ -1,0 +1,214 @@
+---
+title: "project logistic regression"
+author: "Anastasia Molotova"
+date: "`r format(Sys.time(), '%d. %B %Y')`"
+output: 
+  html_document:
+    theme: paper
+    highlight: monochrome
+    toc: true
+    toc_float: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, errors = FALSE)
+```
+
+
+# Load the data
+
+Run the following line to start working:
+
+```{r}
+data <- readRDS("ruwvs")
+str(data)
+head(data)
+tail(data)
+```
+
+First of all, `age` must be a numeric variable. Also, I will delete repetitive in meaning variables: I decided yo use binary education (`eduT`) and *conditionally* income as continuous variable (`income1`).
+
+```{r}
+library(dplyr)
+data = data %>% select(-income, -eduR)
+data$age = as.numeric(data$age)
+```
+
+# Descriptive statistics
+
+I will use DataExplorer library in order to plot some info + psych for stats information.
+
+```{r}
+library(DataExplorer)
+introduce(data)
+```
+
+So, here we have 79 missing values. Let's delete them since it will not affect the results (insignificant part of the data, 79 out of 1810). More NA we have in `income`(3.48%) variable, then `education`(.55%) and `interested in politics`(.33%).
+
+```{r}
+plot_missing(data)
+data = na.omit(data)
+```
+
+```{r}
+library(psych)
+describe(data)
+```
+
+Describing our data by target variable -- answer to the question (either will do this political action or not)
+
+```{r}
+describeBy(data, data$Q211)
+```
+
+Describing by variables:
+
+```{r}
+library(ggplot2)
+
+pol = ggplot()+
+  geom_bar(data = data, aes(x = intinpol))
+town = ggplot()+
+  geom_bar(data = data, aes(x = townsize))
+settle= ggplot()+
+  geom_bar(data = data, aes(x = settlement))
+region = ggplot()+
+  geom_bar(data = data, aes(x = region))
+ed = ggplot()+
+  geom_bar(data = data, aes(x = eduT))
+
+inc = ggplot()+
+  geom_histogram(data = data, aes(x=income1))
+ag = ggplot()+
+  geom_histogram(data = data, aes(x=age))
+
+library(patchwork)
+(pol | town | settle | region ) /
+      (ed | inc | ag)
+```
+
+There are some people who do not have a higher education, distribution of income is fine, but age is right-skewed.
+
+# Modeling
+
+First of all, I decided to make a model with all possible predictors...
+
+```{r}
+log <- glm(Q211 ~ ., data = data, family = "binomial")
+summary(log)
+```
+
+... we can clearly see that some levels are not significant, and region is not significant at all. Then I asked stepAIC for help. It goes over several models and automatically choose the best one. The best model will have the lower AIC-score.
+
+```{r}
+library(MASS)
+stepAIC(log)
+```
+
+In our case I chose model with AIC = 2251.73 (the lowest one), and the formula will be the following:
+
+```{r}
+logbest <- glm(Q211 ~ intinpol + townsize + settlement + income1 + eduT, data = data, family = "binomial")
+summary(logbest)
+```
+
+Then, let's check multicollinearity in our model:
+
+```{r}
+library(car)
+car::vif(logbest)
+```
+
+Wow! There are two variables with VERY high VIF score: townsize & settlement (above 39), delete them and our final model is done.
+
+# Best model: interested in politics, income, education
+
+```{r}
+logf <- glm(Q211 ~ intinpol + income1 + eduT, data = data, family = "binomial")
+summary(logf)
+```
+
+```{r}
+car::residualPlots(logf)
+```
+
+Linearity check shows that our model predicts not really well (does not suit the data), this will be explained by further low accuracy.
+
+# Model equation 
+
+is the following:
+
+```{r}
+library(equatiomatic)
+```
+
+```{r, results='asis'}
+equatiomatic::extract_eq(logf, wrap = TRUE, terms_per_line = 3)
+```
+
+# Interpreting the coefficients
+
+```{r}
+library(broom)
+tidy(logf)
+#augment(logf)
+#glance(logf)
+```
+
+```{r}
+exp(cbind(OR = coef(logf), confint(logf)))
+```
+
+When income increases by one unit, the odds change by a factor of 0.94, decrease by 1-0.94 = 6% [95% CI = 0.89; 0.99]
+When respondent's education is higher, the odds change by a factor of 1.28, the chances are 1.27-1 = 27% higher [95% CI = 1.03; 1.57]
+
+When respondent is 'somewhat interested' in politics, the odds change by a factor of 0.66, the chances are 1-0.66 = 34% higher [95% CI = 0.46; 0.96]
+When respondent is 'Not very interested' in politics, the odds change by a factor of 0.66, the chances are 1-0.58 = 42% higher [95% CI = 0.40; 0.84]
+When respondent is 'Not at all interested' in politics, the odds change by a factor of 0.66, the chances are 1-0.27 = 73% higher [95% CI = 0.18; 0.42]
+
+### margins 
+
+```{r}
+library(margins)
+m <- margins(logf, type = "response")
+summary(m)
+```
+
+# Model quality
+
+```{r}
+library(pscl)
+pR2(logf)
+```
+
+-2LL values should be closer to zero, and they are here.
+
+# Accuracy and commenting on the results
+
+```{r}
+bound <- floor((nrow(data)/4)*3)     #define 75% of training and test set (could be 50%, 60%)
+set.seed(195455555)
+df <- data[sample(nrow(data)), ]   #sample 400 random rows out of the data
+df.train <- df[1:bound, ]              #get training set
+df.test <- df[(bound+1):nrow(df), ]    #get test set
+
+logff <- glm(Q211 ~ intinpol + income1 + eduT, data = data, family = "binomial")
+```
+
+```{r}
+pred <- format(round(predict(logff, newdata = df.test, type = "response")))
+accuracy <- table(pred, df.test[,"Q211"])
+sum(diag(accuracy))/sum(accuracy)
+```
+
+Accuracy of 0.57 is quite low. 
+
+```{r}
+library(caret)
+confusionMatrix(table(pred, df.test$Q211)) 
+```
+
+We have sensitivity more higher that specificity, some troubles with predicting negative values.
+
+Overall, in this project I created a binary logistic regression which predicts people's polical actions with income, binary higher education and interest in politics. Although, the model does not predict very well, so some more explainable variables and observations must be added here.
