@@ -1,0 +1,105 @@
+---
+title: "This is my Rmd template"
+subtitle: "And I will use it for the projects to knit signature reports"
+author: "created by Anastasia Molotova"
+date: "Template last updated on `r format(Sys.time(), '%B %d %Y %a, %I:%M %p')`"
+output: 
+  html_document:
+    theme: paper
+    highlight: monochrome
+    toc: true
+    toc_float: false
+    code_folding: show
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, error = FALSE)
+```
+
+This template is created as a comfortable skeleton for the further projects and doesn't contain any semantic load either in data or table/plot. I understand that it is better to load all necessary package in the first chunk, but I still prefer to load libraries in the chunks where the function first appears, since it can be easily understood where the function is from.
+
+# Scrapping {#anchor} 
+
+## Loading libraries
+
+```{r libraries}
+library("rvest")
+library("WikipediR")
+```
+
+# Logistic regression
+
+## Data
+
+```{r load data}
+data(iris) #random data that came to my mind
+```
+
+## Descriptive statistics
+
+```{r stats}
+library(psych)
+library(knitr)
+library(kableExtra)
+describe(iris) %>% 
+  kable(caption = "Table N. Add title here") %>% 
+  kable_minimal() #don't create a bike here
+```
+
+## Not-custom ggplot & new opportunities!
+
+I just wanted to add some ggplot into this template and try the package we recently found out about
+
+```{r ggplot}
+library(ggplot2)
+library(patchwork)
+
+s = ggplot(data = iris) +
+  geom_point(aes(x = `Sepal.Length`, y = `Sepal.Width`, color = Species), show.legend = FALSE) +
+  labs(title = "Sepal", x = "Length", y = "Width") +
+  scale_color_brewer(palette="Dark2") +
+  theme_minimal()
+
+p = ggplot(data = iris) +
+  geom_point(aes(x = `Petal.Length`, y = `Petal.Width`, color = Species)) +  
+  labs(title = "Petal", x = "Length", y = "Width") +
+  scale_color_brewer(palette="Dark2")+
+  theme_minimal()
+
+patchwork = s + p
+patchwork + plot_annotation(
+  title = 'Exploring irises'
+)
+
+
+#----------------------------------------
+#thing that i got used to once -- saving plots and tables in png from r
+#for patchwork-ggplot2-object-whatever we have to save this into an object and pass it:
+
+#saveme = patchwork + plot_annotation(title = 'Exploring irises')
+#ggsave('patchworksave.png', saveme)
+```
+
+<!-- During the work i accidentally pressed some buttons, didn't realized and this thing appeared. Never used it before and goggled that this is text comments and won't appear in html  -->
+
+# Dimention reduction
+
+# Clusters
+
+# Bayes reflection
+
+# Essays
+
+**Essays** also can be written in *RMarkdown*, and text ~~formatting~~ is easy. `Add code example here` for the essay. 
+
+Return to [scrapping](#anchor) button.
+
+# Instead the conclusion
+
+Today was introduced new [rmarkdown editor](https://blog.rstudio.com/2020/09/30/rstudio-v1-4-preview-visual-markdown-editing/) which looks aaaawesome and has a lot of new fun stuff! Just wanted to share :)
+
+Thanks for the attention! I would appreciate any feedback regarding this template. 
+
+![](https://scontent-arn2-2.xx.fbcdn.net/v/t1.0-9/s960x960/36386182_1939759652742983_7193448983845404672_o.png?_nc_cat=108&_nc_sid=8024bb&_nc_ohc=GlhTsLzxWmwAX8a-_He&_nc_ht=scontent-arn2-2.xx&oh=90e4b699749b8564137050a425887a60&oe=5F99883A) 
