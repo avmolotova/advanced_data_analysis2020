@@ -1,0 +1,127 @@
+---
+title: "Scraping university ratings"
+author: "Anastasia Molotova"
+date: " `r format(Sys.time(), '%B %d %Y %a, %I:%M %p')`"
+output: 
+  html_document:
+    theme: paper
+    highlight: monochrome
+    toc: true
+    toc_float: false
+    code_folding: show
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, error = FALSE)
+```
+
+#scrape the data
+
+```{r}
+library(rvest)
+url <- "https://en.wikipedia.org/wiki/Times_Higher_Education_World_University_Rankings"
+webpage <- read_html(url)
+tbls <- html_nodes(webpage, "table")
+```
+
+# get the right table
+
+```{r}
+# Shows all tables
+tbls
+# Only one table should be returned
+# If more matched, find search term
+tbls[grep("Times Higher Education World University Rankings—Top 50",tbls,ignore.case = T)]
+df <- html_table(tbls[grep("Times Higher Education World University Rankings—Top 50",tbls,ignore.case = T)],fill = T)[[1]]
+```
+
+# clean the table
+
+```{r}
+head(df)
+colnames(df)
+#remove the pattern [number] in columns
+colnames(df) <- sub("\\[[^][]*]", "", colnames(df))
+colnames(df)
+#cool! it seems that other things are fine
+head(df)
+```
+
+#save the table in CSV or RDS
+
+```{r}
+#write.csv(df, file = "Top50Uni_all.csv", row.names = FALSE)
+saveRDS(df, file = "Top50Uni_all.rds")
+```
+
+```{r}
+rm(list = ls()) #cleaning environment
+df = readRDS(file = "Top50Uni_all.rds") #it works!
+```
+
+#data manipulation
+
+```{r}
+library(tidyverse)
+df1 = df %>% select(Institution, `2010–11`, `2020–21`) %>%  slice(1:8)#I took top-5 by 2021 year, let's see where these universities were 10 years ago
+
+library(reshape2)
+dflong <- melt(df1, id.vars = 'Institution', value.name = "rating", variable.name = "year")
+```
+
+#create a slopegraph between years 2011 and 2021 and save it as PNG/JPG (a small one)
+
+```{r}
+removeall <- list(  
+  # move the x axis labels up top,
+  theme_bw(),
+  # Format tweaks
+  # Remove the legend
+  theme(legend.position = "none"),
+  # Remove the panel border
+  theme(panel.border     = element_blank()),
+  # Remove just about everything from the y axis
+  theme(axis.title.y     = element_blank()),
+  theme(axis.text.y      = element_blank()),
+  theme(panel.grid.major.y = element_blank()),
+  theme(panel.grid.minor.y = element_blank()),
+  # Remove a few things from the x axis and increase font size
+  theme(axis.title.x     = element_blank()),
+  theme(panel.grid.major.x = element_blank()),
+  theme(axis.text.x.top      = element_text(size=12)),
+  # Remove x & y tick marks
+  theme(axis.ticks       = element_blank()),
+  # Format title & subtitle
+  theme(plot.title       = element_text(size=14, face = "bold", hjust = 0.5)),
+  theme(plot.subtitle    = element_text(hjust = 0.5))
+)
+```
+
+
+```{r}
+slope = ggplot(data = dflong, aes(x = year, y = rating, group = Institution)) +
+  geom_line(aes(color = Institution), size = 1) +
+  geom_text_repel(data = dflong %>% filter(year == "2010–11"), 
+            aes(label = paste0(Institution, "\n", rating, " place")) , 
+            hjust = "right",
+            direction = "y",
+            size = 3) +
+  geom_text(data = dflong %>% filter(year == "2020–21"), 
+            aes(label = paste0(Institution, "\n", rating, " place")) ,
+            hjust = "left",
+            size = 3) +
+  geom_label(aes(label = rating), 
+             size = 0, 
+             label.padding = unit(0.05, "lines"), 
+             label.size = 0.0) +
+removeall +
+  labs(
+    title = "World University Rankings — Top 10",
+    subtitle = "Times Higher Education, 2010-2021",
+    caption = "https://en.wikipedia.org/wiki/Times_Higher_Education_World_University_Rankings"
+  )
+
+ggsave(slope, file = "slope.png")
+```
